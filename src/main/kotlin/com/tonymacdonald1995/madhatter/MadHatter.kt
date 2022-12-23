@@ -6,11 +6,13 @@ import net.dv8tion.jda.api.events.guild.GuildReadyEvent
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
 import net.dv8tion.jda.api.hooks.ListenerAdapter
 import net.dv8tion.jda.api.interactions.commands.OptionType
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 fun main(args : Array<String>) {
     val token : String = System.getenv("TOKEN") ?: ""
     if (token.isEmpty()) {
-        println("Error: No bot token")
+        println("[" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + "] " + "Error: No bot token")
         return
     }
     val jda = JDABuilder.createDefault(token).addEventListeners(MadHatter()).build()
@@ -21,7 +23,7 @@ class MadHatter : ListenerAdapter() {
 
     override fun onGuildReady(event : GuildReadyEvent) {
 
-        println("Connected to " + event.guild.name)
+        println("[" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + "] " + "Connected to " + event.guild.name)
 
         event.guild.selfMember.modifyNickname("Mad Hatter").queue()
 
@@ -82,6 +84,6 @@ class MadHatter : ListenerAdapter() {
 
         member.modifyNickname(nickname).queue()
         hook.sendMessage(member.user.name + "'s nickname has been changed to " + nickname).queue()
-        println(event.member?.user?.name + " changed " + member.user.name + "'s nickname to " + nickname)
+        println("[" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + "] " + event.member?.user?.name + " changed " + member.user.name + "'s nickname to " + nickname)
     }
 }
