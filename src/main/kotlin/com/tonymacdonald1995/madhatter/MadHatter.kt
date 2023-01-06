@@ -19,11 +19,12 @@ fun main(args : Array<String>) {
         log("Error: No bot token")
         return
     }
+    val madHatter = MadHatter()
     if (openAiToken.isEmpty()) {
         log("Warn: No OpenAI token")
+    } else {
+        madHatter.openAiService = OpenAiService(openAiToken)
     }
-    val madHatter = MadHatter()
-    madHatter.openAiService = OpenAiService(openAiToken)
     val jda = JDABuilder.createDefault(token).addEventListeners(madHatter).build()
     jda.selfUser.manager.setName("Mad Hatter").queue()
 }
