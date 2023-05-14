@@ -15,7 +15,6 @@ repositories {
 dependencies {
     testImplementation(kotlin("test"))
     implementation("net.dv8tion:JDA:5.0.0-beta.2")
-    implementation("com.theokanning.openai-gpt3-java:client:0.8.1")
 }
 
 tasks.test {

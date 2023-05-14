@@ -1,37 +1,26 @@
 package com.tonymacdonald1995.madhatter
 
-import com.theokanning.openai.OpenAiService
-import com.theokanning.openai.completion.CompletionRequest
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.events.guild.GuildReadyEvent
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
-import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.hooks.ListenerAdapter
 import net.dv8tion.jda.api.interactions.commands.OptionType
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 fun main(args : Array<String>) {
-    val token : String = System.getenv("TOKEN") ?: ""
-    val openAiToken : String = System.getenv("AITOKEN") ?: ""
+    val token : String = System.getenv("TOKEN") ?: args[0]
     if (token.isEmpty()) {
         log("Error: No bot token")
         return
     }
     val madHatter = MadHatter()
-    if (openAiToken.isEmpty()) {
-        log("Warn: No OpenAI token")
-    } else {
-        madHatter.openAiService = OpenAiService(openAiToken)
-    }
     val jda = JDABuilder.createDefault(token).addEventListeners(madHatter).build()
     jda.selfUser.manager.setName("Mad Hatter").queue()
 }
 
 class MadHatter : ListenerAdapter() {
-
-    var openAiService : OpenAiService? = null
 
     override fun onGuildReady(event : GuildReadyEvent) {
 
@@ -59,23 +48,6 @@ class MadHatter : ListenerAdapter() {
             }
         }
 
-    }
-
-    override fun onMessageReceived(event: MessageReceivedEvent) {
-        if (openAiService != null) {
-            if (event.message.mentions.isMentioned(event.guild.selfMember)) {
-                event.message.channel.asTextChannel().sendTyping().queue()
-                val completionRequest = CompletionRequest.builder()
-                    .prompt(event.message.contentDisplay.removePrefix("@Mad Hatter "))
-                    .model("text-davinci-003")
-                    .echo(false)
-                    .maxTokens(1000)
-                    .build()
-                openAiService!!.createCompletion(completionRequest).choices.forEach {
-                    event.message.channel.asTextChannel().sendMessage(it.text).queue()
-                }
-            }
-        }
     }
 
     private fun changeNickname(event : SlashCommandInteractionEvent) {
