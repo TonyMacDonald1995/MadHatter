@@ -10,7 +10,11 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 fun main(args : Array<String>) {
-    val token : String = System.getenv("TOKEN") ?: args[0]
+    val token = if (args.isNotEmpty())
+                    args[0]
+                else
+                    System.getenv("TOKEN") ?: ""
+
     if (token.isEmpty()) {
         log("Error: No bot token")
         return
