@@ -76,8 +76,10 @@ class MadHatter : ListenerAdapter() {
     }
 
     override fun onMessageReceived(event: MessageReceivedEvent) {
+        if (event.message.member == event.guild.selfMember)
+            return
         val triggerWords = listOf("change", "swap", "shift", "switch", "trade")
-        if (event.message.contentDisplay.containsAny(triggerWords, false) && event.message.member != event.guild.selfMember)
+        if (event.message.contentDisplay.containsAny(triggerWords, false))
             nicknameShuffle(event.guild)
         event.channel.sendMessage("https://tenor.com/view/futurama-change-places-musical-chairs-gif-14252770").queue()
     }
