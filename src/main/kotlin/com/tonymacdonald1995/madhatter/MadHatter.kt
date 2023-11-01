@@ -29,14 +29,13 @@ fun main(args : Array<String>) {
         return
     }
     val madHatter = MadHatter()
-    val jda = JDABuilder
+    JDABuilder
         .createDefault(token)
         .enableIntents(GatewayIntent.GUILD_MEMBERS, GatewayIntent.MESSAGE_CONTENT)
         .setMemberCachePolicy(MemberCachePolicy.ALL)
         .setChunkingFilter(ChunkingFilter.ALL)
         .addEventListeners(madHatter)
         .build()
-    jda.selfUser.manager.setName("Mad Hatter").queue()
 }
 
 class MadHatter : ListenerAdapter() {
@@ -49,7 +48,7 @@ class MadHatter : ListenerAdapter() {
 
         event.guild.upsertCommand("nn", "Changes a user's nickname")
             .addOption(OptionType.USER, "user", "User to change nickname", true)
-            .addOption(OptionType.STRING, "nickname", "New nickname for the user", true)
+            .addOption(OptionType.STRING, "nickname", "New nickname for the user", false)
             .queue()
 
         event.guild.upsertCommand("nnbackup", "Creates a backup of nicknames as they currently are.")
@@ -79,9 +78,10 @@ class MadHatter : ListenerAdapter() {
         if (event.message.member == event.guild.selfMember)
             return
         val triggerWords = listOf("change", "swap", "shift", "switch", "trade")
-        if (event.message.contentDisplay.containsAny(triggerWords, false))
+        if (event.message.contentDisplay.containsAny(triggerWords, false)) {
             nicknameShuffle(event.guild)
-        event.channel.sendMessage("https://tenor.com/view/futurama-change-places-musical-chairs-gif-14252770").queue()
+            event.channel.sendMessage("https://tenor.com/view/futurama-change-places-musical-chairs-gif-14252770").queue()
+        }
     }
 
     private fun changeNickname(event : SlashCommandInteractionEvent) {
@@ -90,7 +90,7 @@ class MadHatter : ListenerAdapter() {
         hook.setEphemeral(true)
         val member = event.getOption("user")?.asMember ?: return
         val selfMember = event.guild?.selfMember ?: return
-        val nickname = event.getOption("nickname")!!.asString
+        val nickname = event.getOption("nickname")?.asString ?: ""
 
         if (!selfMember.hasPermission(Permission.NICKNAME_MANAGE)) {
             hook.sendMessage("Error: I don't have permission to manage nicknames.").queue()
@@ -166,7 +166,7 @@ private fun nicknameShuffle(guild: Guild) {
         it != guild.selfMember && guild.selfMember.canInteract(it)
     }.toMutableList()
 
-    val shuffledNicknames = memberList.mapNotNull { it.nickname ?: it.effectiveName }.shuffled()
+    val shuffledNicknames = memberList.mapNotNull { it.nickname ?: it.user.globalName }.shuffled()
 
     memberList.zip(shuffledNicknames).forEach { (member, nickname) ->
         member.modifyNickname(nickname).queue()
