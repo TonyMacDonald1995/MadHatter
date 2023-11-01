@@ -1,13 +1,23 @@
 package com.tonymacdonald1995.madhatter
 
+import com.google.gson.Gson
+import net.dv8tion.jda.api.EmbedBuilder
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.Permission
+import net.dv8tion.jda.api.entities.Guild
 import net.dv8tion.jda.api.events.guild.GuildReadyEvent
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
+import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.hooks.ListenerAdapter
 import net.dv8tion.jda.api.interactions.commands.OptionType
+import net.dv8tion.jda.api.requests.GatewayIntent
+import net.dv8tion.jda.api.utils.ChunkingFilter
+import net.dv8tion.jda.api.utils.MemberCachePolicy
+import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+
+data class NicknameData(val id: Long, val nickname: String)
 
 fun main(args : Array<String>) {
     val token = if (args.isNotEmpty())
@@ -20,7 +30,13 @@ fun main(args : Array<String>) {
         return
     }
     val madHatter = MadHatter()
-    val jda = JDABuilder.createDefault(token).addEventListeners(madHatter).build()
+    val jda = JDABuilder
+        .createDefault(token)
+        .enableIntents(GatewayIntent.GUILD_MEMBERS, GatewayIntent.MESSAGE_CONTENT)
+        .setMemberCachePolicy(MemberCachePolicy.ALL)
+        .setChunkingFilter(ChunkingFilter.ALL)
+        .addEventListeners(madHatter)
+        .build()
     jda.selfUser.manager.setName("Mad Hatter").queue()
 }
 
@@ -36,6 +52,12 @@ class MadHatter : ListenerAdapter() {
             .addOption(OptionType.USER, "user", "User to change nickname", true)
             .addOption(OptionType.STRING, "nickname", "New nickname for the user", true)
             .queue()
+
+        event.guild.upsertCommand("nnbackup", "Creates a backup of nicknames as they currently are.")
+            .queue()
+
+        event.guild.upsertCommand("nnrestore", "Restores nicknames from last backup, if one exists.")
+            .queue()
     }
 
     override fun onSlashCommandInteraction(event : SlashCommandInteractionEvent) {
@@ -44,14 +66,21 @@ class MadHatter : ListenerAdapter() {
             return
 
         when(event.name) {
-            "nn" -> {
-                changeNickname(event)
-            }
+            "nn" -> changeNickname(event)
+            "nnbackup" -> nicknameBackup(event)
+            "nnrestore" -> nicknameRestore(event)
             else -> {
                 event.reply("Error: Unknown command").setEphemeral(true).queue()
             }
         }
 
+    }
+
+    override fun onMessageReceived(event: MessageReceivedEvent) {
+        val triggerWords = listOf("change", "swap", "shift", "switch", "trade")
+        if (event.message.contentDisplay.containsAny(triggerWords, false))
+            nicknameShuffle(event.guild)
+        event.channel.sendMessageEmbeds(EmbedBuilder().setDescription("Change Places!").setImage("https://tenor.com/view/futurama-change-places-musical-chairs-gif-14252770").build()).queue()
     }
 
     private fun changeNickname(event : SlashCommandInteractionEvent) {
@@ -91,6 +120,87 @@ class MadHatter : ListenerAdapter() {
         hook.sendMessage(member.user.name + "'s nickname has been changed to " + nickname).queue()
         log(event.member?.user?.name + " changed " + member.user.name + "'s nickname to " + nickname)
     }
+}
+
+private fun nicknameBackup(event: SlashCommandInteractionEvent) {
+    if (event.guild == null) {
+        event.reply("Error: Command must be called from a server.").setEphemeral(true).queue()
+        return
+    }
+    val guild = event.guild
+    event.deferReply(true).queue()
+    val hook = event.hook
+    val memberList = guild!!.members.filter {
+        it != guild.selfMember && guild.selfMember.canInteract(it)
+    }.toMutableList()
+
+    val nicknameMap = memberList.associate { it.idLong to (it.nickname ?: "") }.toMutableMap()
+    saveNicknameData(guild.id, nicknameMap)
+    hook.sendMessage("Backup made successfully.").queue()
+}
+
+private fun nicknameRestore(event: SlashCommandInteractionEvent) {
+    if (event.guild == null) {
+        event.reply("Error: Command must be called from a server.").setEphemeral(true).queue()
+        return
+    }
+
+    val guild = event.guild
+    event.deferReply(true).queue()
+    val hook = event.hook
+    val nicknameMap = loadNicknameData(guild!!.id)
+
+    if (nicknameMap.isEmpty()) {
+        hook.sendMessage("Error: Unable to restore backup.").queue()
+        return
+    }
+
+    for(pair in nicknameMap)
+        guild.getMemberById(pair.key)?.modifyNickname(pair.value)?.queue()
+    hook.sendMessage("Backup restored successfully.").queue()
+}
+
+private fun nicknameShuffle(guild: Guild) {
+    val memberList = guild.members.filter {
+        it != guild.selfMember && guild.selfMember.canInteract(it)
+    }.toMutableList()
+
+    val shuffledNicknames = memberList.mapNotNull { it.nickname ?: it.effectiveName }.shuffled()
+
+    memberList.zip(shuffledNicknames).forEach { (member, nickname) ->
+        member.modifyNickname(nickname).queue()
+    }
+
+
+}
+
+private fun loadNicknameData(guildId: String): MutableMap<Long, String> {
+    val gson = Gson()
+    val file = File("/data/$guildId.json")
+    return if (file.exists()) {
+        val json = file.readText()
+        val memberDataList = gson.fromJson(json, Array<NicknameData>::class.java)
+        val nicknameMap = mutableMapOf<Long, String>()
+        memberDataList.forEach { nicknameMap[it.id] = it.nickname }
+        nicknameMap
+    } else {
+        mutableMapOf()
+    }
+}
+
+private fun saveNicknameData(guildId: String, nicknameMap: MutableMap<Long, String>) {
+    val gson = Gson()
+    val memberDataList = nicknameMap.map { NicknameData(it.key, it.value) }
+    val json = gson.toJson(memberDataList)
+    File("/data/$guildId.json").writeText(json)
+}
+
+fun String.containsAny(list: List<String>, caseSensitive: Boolean = true): Boolean {
+    for (item in list) {
+        if (this.contains(item, !caseSensitive))
+            return true
+    }
+    return false
 }
 
 fun log(message : String) {
