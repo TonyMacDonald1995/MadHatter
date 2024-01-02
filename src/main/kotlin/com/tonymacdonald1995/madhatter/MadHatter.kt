@@ -84,7 +84,6 @@ class MadHatter : ListenerAdapter() {
         when(event.name) {
             "nn" -> changeNickname(event)
             "nnme" -> changeSelfNickname(event)
-            "nnbackup" -> nicknameBackup(event)
             "nnrestore" -> nicknameRestore(event)
             "nnpause" -> nicknamePause(event)
             "nnresume" -> nicknameResume(event)
@@ -108,6 +107,7 @@ class MadHatter : ListenerAdapter() {
 
         val triggerWords = listOf("change", "swap", "shift", "switch", "trade")
         if (event.message.contentDisplay.containsAny(triggerWords, false)) {
+            nicknameBackup(event)
             nicknameShuffle(event.guild)
             event.channel.sendMessage("https://tenor.com/view/futurama-change-places-musical-chairs-gif-14252770").queue()
             shuffledMap[event.guild.id] = true
@@ -184,8 +184,8 @@ class MadHatter : ListenerAdapter() {
 
     }
 
-    private fun nicknameBackup(event: SlashCommandInteractionEvent) {
-        val guild = event.guild ?: return
+    private fun nicknameBackup(event: MessageReceivedEvent) {
+        val guild = event.guild
         val memberList = guild.members.filter {
             it != guild.selfMember && guild.selfMember.canInteract(it)
         }.toMutableList()
