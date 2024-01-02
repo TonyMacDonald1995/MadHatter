@@ -5,10 +5,17 @@ import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.entities.Guild
 import net.dv8tion.jda.api.events.guild.GuildReadyEvent
+import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
+import net.dv8tion.jda.api.events.interaction.command.UserContextInteractionEvent
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.hooks.ListenerAdapter
 import net.dv8tion.jda.api.interactions.commands.OptionType
+import net.dv8tion.jda.api.interactions.commands.build.Commands
+import net.dv8tion.jda.api.interactions.components.ActionRow
+import net.dv8tion.jda.api.interactions.components.text.TextInput
+import net.dv8tion.jda.api.interactions.components.text.TextInputStyle
+import net.dv8tion.jda.api.interactions.modals.Modal
 import net.dv8tion.jda.api.requests.GatewayIntent
 import net.dv8tion.jda.api.utils.ChunkingFilter
 import net.dv8tion.jda.api.utils.MemberCachePolicy
@@ -51,29 +58,53 @@ class MadHatter : ListenerAdapter() {
 
         event.guild.selfMember.modifyNickname("Mad Hatter").queue()
 
-        event.guild.upsertCommand("nnme", "Changes your nickname")
-            .addOption(OptionType.STRING, "nickname", "New nickname", false)
-            .queue()
+        event.guild.updateCommands().addCommands(
 
-        event.guild.upsertCommand("nn", "Changes a user's nickname")
-            .addOption(OptionType.USER, "user", "User to change nickname", true)
-            .addOption(OptionType.STRING, "nickname", "New nickname for the user", false)
-            .queue()
+            Commands.slash("nnme", "Changes your nickname")
+                .addOption(OptionType.STRING, "nickname", "New nickname", false),
 
-        event.guild.upsertCommand("nnbackup", "Creates a backup of nicknames as they currently are.")
-            .queue()
+            Commands.slash("nn", "Changes a user's nickname")
+                .addOption(OptionType.USER, "user", "User to change nickname", true)
+                .addOption(OptionType.STRING, "nickname", "New nickname for the user", false),
 
-        event.guild.upsertCommand("nnrestore", "Restores nicknames from last backup, if one exists.")
-            .queue()
-        event.guild.upsertCommand("nnpause", "Pauses nickname shuffle for one hour.")
-            .queue()
-        event.guild.upsertCommand("nnresume", "Resumes nickname shuffle.")
-            .queue()
+            Commands.slash("nnrestore", "Restores nicknames from last backup, if one exists."),
+
+            Commands.slash("nnpause", "Pauses nickname shuffle for one hour."),
+
+            Commands.slash("nnresume", "Resumes nickname shuffle."),
+
+            Commands.user("Change Nickname")
+                .setGuildOnly(true)
+        ).queue()
 
         shuffledMap[event.guild.id] = false
         nicknameRestore(event)
 
 
+    }
+
+    override fun onUserContextInteraction(event: UserContextInteractionEvent) {
+        if (event.guild == null)
+            return
+
+        when(event.name) {
+            "Change Nickname" -> changeNickname(event)
+            else -> {
+                event.reply("Error: Unknown Context Button").setEphemeral(true).queue()
+            }
+        }
+    }
+
+    override fun onModalInteraction(event: ModalInteractionEvent) {
+        if (event.guild == null)
+            return
+
+        when (event.modalId) {
+            "nn" -> changeNickname(event)
+            else -> {
+                event.reply("Error: Unknown Modal").setEphemeral(true).queue()
+            }
+        }
     }
 
     override fun onSlashCommandInteraction(event : SlashCommandInteractionEvent) {
@@ -112,6 +143,38 @@ class MadHatter : ListenerAdapter() {
             event.channel.sendMessage("https://tenor.com/view/futurama-change-places-musical-chairs-gif-14252770").queue()
             shuffledMap[event.guild.id] = true
         }
+    }
+
+    private fun changeNickname(event: ModalInteractionEvent) {
+        if (shuffledMap[event.guild?.id] == true) {
+            event.reply("Nicknames cannot be changed while they are shuffled, to proceed use /nnrestore").queue()
+            return
+        }
+        val nickname = event.getValue("nickname")?.asString ?: ""
+        val memberId = event.getValue("member")?.asString ?: return
+        val member = event.guild?.getMemberById(memberId) ?: return
+        event.guild?.modifyNickname(member, nickname)?.queue()
+        event.reply("Done").setEphemeral(true).queue()
+
+    }
+    private fun changeNickname(event: UserContextInteractionEvent) {
+        val nick = TextInput.create("nickname", "Nickname", TextInputStyle.SHORT)
+            .setPlaceholder("Enter nickname or leave blank to revert")
+            .setMinLength(0)
+            .setMaxLength(32)
+            .setRequired(false)
+            .build()
+
+        val  member = TextInput.create("member", "User ID (Don't Touch)", TextInputStyle.SHORT)
+            .setPlaceholder("Good job, now hit cancel.")
+            .setValue(event.targetMember?.id)
+            .setRequired(true)
+            .build()
+
+        val modal = Modal.create("nn", "Change Nickname")
+            .addComponents(ActionRow.of(nick), ActionRow.of(member))
+            .build()
+        event.replyModal(modal).queue()
     }
 
     private fun changeNickname(event : SlashCommandInteractionEvent) {
@@ -163,7 +226,7 @@ class MadHatter : ListenerAdapter() {
             return
         }
 
-        if (selfMember.hasPermission(Permission.NICKNAME_MANAGE)) {
+        if (!selfMember.hasPermission(Permission.NICKNAME_MANAGE)) {
             hook.sendMessage("Error: I don't have permission to manage nicknames.").queue()
             return
         }
