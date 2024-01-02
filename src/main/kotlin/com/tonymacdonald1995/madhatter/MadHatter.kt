@@ -13,10 +13,14 @@ import net.dv8tion.jda.api.requests.GatewayIntent
 import net.dv8tion.jda.api.utils.ChunkingFilter
 import net.dv8tion.jda.api.utils.MemberCachePolicy
 import java.io.File
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 data class NicknameData(val id: Long, val nickname: String)
+
+val nicknamePauseMap: MutableMap<Long, Long> = mutableMapOf()
 
 fun main(args : Array<String>) {
     val token = if (args.isNotEmpty())
@@ -62,6 +66,10 @@ class MadHatter : ListenerAdapter() {
 
         event.guild.upsertCommand("nnrestore", "Restores nicknames from last backup, if one exists.")
             .queue()
+        event.guild.upsertCommand("nnpause", "Pauses nickname shuffle for one hour.")
+            .queue()
+        event.guild.upsertCommand("nnresume", "Resumes nickname shuffle.")
+            .queue()
 
         shuffledMap[event.guild.id] = false
         nicknameRestore(event)
@@ -79,6 +87,8 @@ class MadHatter : ListenerAdapter() {
             "nnme" -> changeSelfNickname(event)
             "nnbackup" -> nicknameBackup(event)
             "nnrestore" -> nicknameRestore(event)
+            "nnpause" -> nicknamePause(event)
+            "nnresume" -> nicknameResume(event)
             else -> {
                 event.reply("Error: Unknown command").setEphemeral(true).queue()
             }
@@ -89,6 +99,10 @@ class MadHatter : ListenerAdapter() {
     override fun onMessageReceived(event: MessageReceivedEvent) {
         if (event.message.member == event.guild.selfMember)
             return
+        if((nicknamePauseMap[event.guild.idLong] ?: 0) > System.currentTimeMillis()) {
+            return
+        }
+
         if (shuffledMap[event.guild.id] == true)
             return
 
@@ -240,6 +254,45 @@ class MadHatter : ListenerAdapter() {
             mutableMapOf()
         }
     }
+private fun nicknamePause(event: SlashCommandInteractionEvent) {
+    if (event.guild == null) {
+        event.reply("Error: Command must be called from a server.").setEphemeral(true).queue()
+        return
+    }
+
+    nicknamePauseMap[event.guild!!.idLong] = System.currentTimeMillis() + 60 * 60 * 1000
+
+    val pausedTime = Instant.ofEpochMilli(nicknamePauseMap[event.guild!!.idLong]!!)
+    val formatter = DateTimeFormatter.ofPattern("h:mm a zzz").withZone(ZoneId.of("America/Chicago"))
+
+    val formattedPausedTime = formatter.format(pausedTime)
+
+    event.reply("Nickname shuffle has been paused until $formattedPausedTime").setEphemeral(true).queue()
+}
+
+private fun nicknameResume(event: SlashCommandInteractionEvent) {
+    if (event.guild == null) {
+        event.reply("Error: Command must be called from a server.").setEphemeral(true).queue()
+        return
+    }
+
+    nicknamePauseMap.remove(event.guild!!.idLong)
+    event.reply("Nickname shuffle has been resumed.").setEphemeral(true).queue()
+}
+
+private fun loadNicknameData(guildId: String): MutableMap<Long, String> {
+    val gson = Gson()
+    val file = File("/data/$guildId.json")
+    return if (file.exists()) {
+        val json = file.readText()
+        val memberDataList = gson.fromJson(json, Array<NicknameData>::class.java)
+        val nicknameMap = mutableMapOf<Long, String>()
+        memberDataList.forEach { nicknameMap[it.id] = it.nickname }
+        nicknameMap
+    } else {
+        mutableMapOf()
+    }
+}
 
     private fun saveNicknameData(guildId: String, nicknameMap: MutableMap<Long, String>) {
         val gson = Gson()
