@@ -2,6 +2,7 @@ package com.tonymacdonald1995.madhatter
 
 import com.google.gson.Gson
 import net.dv8tion.jda.api.JDABuilder
+import net.dv8tion.jda.api.OnlineStatus
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.entities.Guild
 import net.dv8tion.jda.api.events.guild.GuildReadyEvent
@@ -44,6 +45,7 @@ fun main(args : Array<String>) {
         .setMemberCachePolicy(MemberCachePolicy.ALL)
         .setChunkingFilter(ChunkingFilter.ALL)
         .addEventListeners(madHatter)
+        .setStatus(OnlineStatus.DO_NOT_DISTURB)
         .build()
 }
 
