@@ -56,6 +56,8 @@ class MadHatter : ListenerAdapter() {
 
     override fun onGuildReady(event : GuildReadyEvent) {
 
+        event.guild.loadMembers()
+
         log("Connected to " + event.guild.name)
 
         event.guild.selfMember.modifyNickname("Mad Hatter").queue()
