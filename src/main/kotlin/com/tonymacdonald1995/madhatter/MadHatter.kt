@@ -53,6 +53,7 @@ class MadHatter : ListenerAdapter() {
 
     private val shuffledMap = mutableMapOf<String, Boolean>()
     private val nicknamePauseMap: MutableMap<String, Long> = mutableMapOf()
+    private val nicknameShuffleList = mutableListOf<Long>()
 
     override fun onGuildReady(event : GuildReadyEvent) {
 
@@ -76,6 +77,10 @@ class MadHatter : ListenerAdapter() {
             Commands.slash("nnpause", "Pauses nickname shuffle for one hour."),
 
             Commands.slash("nnresume", "Resumes nickname shuffle."),
+
+            Commands.slash("nnstop", "Stops nickname shuffle until restarted manually."),
+
+            Commands.slash("nnstart", "Starts nickname shuffle until stopped."),
 
             Commands.user("Change Nickname")
                 .setGuildOnly(true)
@@ -122,6 +127,8 @@ class MadHatter : ListenerAdapter() {
             "nnrestore" -> nicknameRestore(event)
             "nnpause" -> nicknamePause(event)
             "nnresume" -> nicknameResume(event)
+            "nnstop" -> nicknameStop(event)
+            "nnstart" -> nicknameStart(event)
             else -> {
                 event.reply("Error: Unknown command").setEphemeral(true).queue()
             }
@@ -138,6 +145,9 @@ class MadHatter : ListenerAdapter() {
         }
 
         if (shuffledMap[event.guild.id] == true)
+            return
+
+        if (!nicknameShuffleList.contains(event.guild.idLong))
             return
 
         val triggerWords = listOf("change", "swap", "shift", "switch", "trade")
@@ -353,6 +363,24 @@ class MadHatter : ListenerAdapter() {
 
         nicknamePauseMap.remove(event.guild!!.id)
         event.reply("Nickname shuffle has been resumed.").setEphemeral(true).queue()
+    }
+
+    private fun nicknameStop(event: SlashCommandInteractionEvent) {
+        if (!nicknameShuffleList.contains(event.guild?.idLong)) {
+            event.reply("Nickname shuffle was already stopped.").setEphemeral(true).queue()
+            return
+        }
+        nicknameShuffleList.remove(event.guild?.idLong)
+        event.reply("Nickname shuffle has been stopped.").setEphemeral(true).queue()
+    }
+
+    private fun nicknameStart(event: SlashCommandInteractionEvent) {
+        if (nicknameShuffleList.contains(event.guild?.idLong)) {
+            event.reply("Nickname shuffle was already started.").setEphemeral(true).queue()
+            return
+        }
+        nicknameShuffleList.add(event.guild?.idLong ?: return)
+        event.reply("Nickname shuffle has been started.").setEphemeral(true).queue()
     }
 }
 
